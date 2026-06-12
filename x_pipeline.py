@@ -48,14 +48,17 @@ ROOT = pathlib.Path(__file__).parent
 DB_PATH = ROOT / "data" / "x_pipeline.db"
 MEDIA_DIR = ROOT / "data" / "media"
 
-# Regions to pull trends from (worldwide + high-volume active locales).
-WOEIDS = [1, 23424977, 23424856, 23424768, 23424848]  # world, US, JP, BR, IN
+# Regions to pull trends from — chosen by viral-output probe (high viral, low flop).
+WOEIDS = [1, 23424977, 23424975, 23424856, 23424819, 23424747, 23424768]
+#         World, US, UK, Japan, France, Argentina, Brazil
 TRENDS_PER_WOEID = 10
-PAGES_PER_TOPIC = 2          # ~20 fresh posts/page
+PAGES_PER_TOPIC = 1          # top page only (~20 highest-early-traction posts/topic)
 FRESH_WINDOW_H = 1.0         # intake posts aged 0..FRESH_WINDOW_H hours
 
-SNAPSHOT_AGES_H = [1, 2, 4, 8, 12, 24]   # log-spaced re-snapshot schedule
-MAX_TRACK_H = 24             # retire after this age
+# Engagement saturates by ~5-6h (measured: +73% in step 1 -> ~+8% by ~5h).
+# Track densely in 0-4h, retire at 8h (vs 24h) -> richer early labels, 3x faster maturation.
+SNAPSHOT_AGES_H = [1, 2, 3, 4, 6, 8]
+MAX_TRACK_H = 8             # retire after this age
 SNAPSHOT_BATCH = 50         # tweet_ids per /twitter/tweets call (100 => HTTP 400)
 
 # spam heuristics

@@ -2,7 +2,7 @@
 
 Thu thập dữ liệu post **mới (0–1h tuổi) + đang trong topic thịnh hành** trên X
 (Twitter), lọc spam, tải ảnh, và **theo dõi engagement (views/likes/shares) theo
-thời gian** trong 24h đầu của mỗi post. Đầu ra là một CSDL SQLite sẵn sàng để
+thời gian** trong ~8h đầu của mỗi post. Đầu ra là một CSDL SQLite sẵn sàng để
 huấn luyện mô hình **online-learning đa phương thức (text + ảnh → dự đoán
 engagement tương lai)**.
 
@@ -18,8 +18,8 @@ Dữ liệu lấy qua REST API của [twitterapi.io](https://twitterapi.io) (hea
 | **Intake post tuổi 0–1h** | Post chụp lúc ≤1h vẫn còn tăng **+56–92% like** về sau → snapshot mang nhiều biến động để học. Post intake >2–3h đã bão hòa >70% (label "chết"). |
 | **Không lọc `min_faves` lúc intake** | Ở tuổi 0–1h chưa biết post nào sẽ viral — **độ viral chính là label cần dự đoán**. |
 | **Toán tử `since_time:<epoch>`** | Chỉ lấy post trong 1h qua → không trả tiền cho post cũ. |
-| **Snapshot theo lịch `[1,2,4,8,12,24]h`** | Dày lúc đầu vì engagement biến động mạnh ở vài giờ đầu. |
-| **Retire sau 24h** | Post đã hội tụ → ngừng re-fetch để tiết kiệm chi phí. |
+| **Snapshot theo lịch `[1,2,3,4,6,8]h`** | Dày lúc đầu vì engagement biến động mạnh ở vài giờ đầu (đo được: +73% giờ đầu → ~+8% lúc ~5h). |
+| **Retire sau 8h** | Post đã bão hòa quanh ~5–6h → ngừng re-fetch để tiết kiệm chi phí + chín nhanh. |
 
 ---
 
@@ -57,7 +57,7 @@ Dữ liệu lấy qua REST API của [twitterapi.io](https://twitterapi.io) (hea
       chọn post chưa retire mà tuổi ≥ mốc lịch kế tiếp
           GET /twitter/tweets?tweet_ids=...   (batch 50 id/call)
           INSERT snapshots(...)   (ghi views/likes/shares tại tuổi hiện tại)
-          tiến con trỏ lịch; nếu qua mốc cuối hoặc tuổi ≥24h → RETIRE post
+          tiến con trỏ lịch; nếu qua mốc cuối hoặc tuổi ≥8h → RETIRE post
 ```
 
 Mỗi post vì thế có **một chuỗi snapshot theo thời gian** = nhãn (label) cho bài
