@@ -1,0 +1,13 @@
+# --- x_pipeline.py (data collection) ---
+requests>=2.31,<3
+
+# stdlib used (no install needed): sqlite3, concurrent.futures, argparse, json, re
+
+# --- optional: image validation/resize before training ---
+# Pillow>=10
+
+# --- optional: multimodal (text+image) online-learning training side ---
+# torch>=2.2
+# transformers>=4.40        # text + CLIP/ViT image encoders
+# scikit-learn>=1.4         # online/incremental models (SGDRegressor, PassiveAggressive)
+# pandas>=2.2

@@ -1,0 +1,26 @@
+# --- secrets ---
+.env
+*.key
+
+# --- collected data (large / private) ---
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# --- third-party skill (has its own git repo) ---
+twitterapi-io/
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# --- os / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
