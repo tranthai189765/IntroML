@@ -28,6 +28,7 @@ import re
 import sys
 import json
 import time
+import atexit
 import sqlite3
 import argparse
 import pathlib
@@ -267,9 +268,45 @@ def spam_filter(tweets, conn=None):
 # ----------------------------- storage --------------------------------------
 def db():
     DB_PATH.parent.mkdir(exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=30000")   # wait up to 30s for a lock, don't error
+    conn.execute("PRAGMA journal_mode=WAL")      # readers (stats) don't block on writer
     return conn
+
+
+# single-instance lock so a second run/intake/snapshot can't clobber the same DB
+LOCK_PATH = DB_PATH.parent / "pipeline.lock"
+
+
+def acquire_lock():
+    LOCK_PATH.parent.mkdir(exist_ok=True)
+    if LOCK_PATH.exists():
+        try:
+            old = int(LOCK_PATH.read_text().strip() or "0")
+        except ValueError:
+            old = 0
+        if old > 0:
+            try:
+                os.kill(old, 0)               # no error => that pid is still alive
+            except ProcessLookupError:
+                pass                          # stale lock -> take it over
+            except PermissionError:
+                raise SystemExit(f"[lock] another instance running (pid {old}); refusing.")
+            else:
+                raise SystemExit(
+                    f"[lock] another x_pipeline instance is already running (pid {old}); "
+                    f"refusing to start. Stop it first, or delete {LOCK_PATH} if stale.")
+    LOCK_PATH.write_text(str(os.getpid()))
+    atexit.register(release_lock)
+
+
+def release_lock():
+    try:
+        if LOCK_PATH.exists() and LOCK_PATH.read_text().strip() == str(os.getpid()):
+            LOCK_PATH.unlink()
+    except Exception:
+        pass
 
 
 def init_db():
@@ -567,11 +604,11 @@ def main():
     if a.cmd == "init":
         init_db()
     elif a.cmd == "intake":
-        init_db(); intake(a.target, Budget(a.budget))
+        acquire_lock(); init_db(); intake(a.target, Budget(a.budget))
     elif a.cmd == "snapshot":
-        init_db(); snapshot(Budget(a.budget), force=a.force)
+        acquire_lock(); init_db(); snapshot(Budget(a.budget), force=a.force)
     elif a.cmd == "run":
-        init_db(); run(a.target, a.interval, Budget(a.budget))
+        acquire_lock(); init_db(); run(a.target, a.interval, Budget(a.budget))
     elif a.cmd == "stats":
         stats()
     b1 = balance()
