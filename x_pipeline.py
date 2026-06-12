@@ -53,12 +53,13 @@ WOEIDS = [1, 23424977, 23424975, 23424856, 23424819, 23424747, 23424768]
 #         World, US, UK, Japan, France, Argentina, Brazil
 TRENDS_PER_WOEID = 10
 PAGES_PER_TOPIC = 1          # top page only (~20 highest-early-traction posts/topic)
-FRESH_WINDOW_H = 1.0         # intake posts aged 0..FRESH_WINDOW_H hours
+FRESH_WINDOW_H = 0.5         # intake posts aged 0..30min (maximum growth still ahead)
 
 # Engagement saturates by ~5-6h (measured: +73% in step 1 -> ~+8% by ~5h).
-# Track densely in 0-4h, retire at 8h (vs 24h) -> richer early labels, 3x faster maturation.
-SNAPSHOT_AGES_H = [1, 2, 3, 4, 6, 8]
-MAX_TRACK_H = 8             # retire after this age
+# Dense 30-min sampling in 0-2h (steepest growth), retire at 6h.
+# NOTE: smallest gap is 0.5h -> MUST run with --interval 1800 (30min) to resolve it.
+SNAPSHOT_AGES_H = [0.5, 1, 1.5, 2, 3, 4, 6]
+MAX_TRACK_H = 6             # retire after this age
 SNAPSHOT_BATCH = 50         # tweet_ids per /twitter/tweets call (100 => HTTP 400)
 
 # spam heuristics
