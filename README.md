@@ -220,6 +220,7 @@ Giữ `.env` trên server, **không commit**.
 | [build_csv.py](build_csv.py) | Dựng lại CSV (kèm cột ảnh/video) từ JSON |
 | [freshness.py](freshness.py) | Phân bố tuổi của post Top so với hiện tại |
 | [freshness_ratio.py](freshness_ratio.py) | Tỷ lệ post 0–1h trên nhiều topic |
+| [analyze_figures.py](analyze_figures.py) | Dựng figure/bảng chất lượng data từ DB → `data/figures/` (phân phối, ngưỡng, đường bão hòa, bảng 1/2/3) |
 
 ---
 

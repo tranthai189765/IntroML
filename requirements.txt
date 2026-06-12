@@ -1,7 +1,11 @@
 # --- x_pipeline.py (data collection) ---
 requests>=2.31,<3
 
-# stdlib used (no install needed): sqlite3, concurrent.futures, argparse, json, re
+# --- analyze_figures.py (data-quality figures/tables) ---
+matplotlib>=3.7
+numpy>=1.24
+
+# stdlib used (no install needed): sqlite3, concurrent.futures, argparse, json, re, csv
 
 # --- optional: image validation/resize before training ---
 # Pillow>=10
