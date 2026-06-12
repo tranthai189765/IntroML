@@ -107,13 +107,22 @@ def balance():
 
 # ----------------------------- http -----------------------------------------
 def get_json(url, params=None, tries=5):
+    last_exc = None
     for attempt in range(tries):
-        r = requests.get(url, headers=HEADERS, params=params, timeout=40)
+        try:
+            r = requests.get(url, headers=HEADERS, params=params, timeout=40)
+        except requests.exceptions.RequestException as e:
+            # network blip (timeout / connection reset) -> back off and retry
+            last_exc = e
+            time.sleep(1.5 * (2 ** attempt))
+            continue
         if r.status_code in (429, 500, 502, 503):
             time.sleep(1.5 * (2 ** attempt))
             continue
         r.raise_for_status()
         return r.json()
+    if last_exc is not None:
+        raise last_exc
     r.raise_for_status()
     return r.json()
 
