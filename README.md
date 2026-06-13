@@ -2,7 +2,7 @@
 
 Thu thập dữ liệu post **mới (0–30 phút tuổi) + đang trong topic thịnh hành** trên X
 (Twitter), lọc spam, tải ảnh, và **theo dõi engagement (views/likes/shares) theo
-thời gian** trong ~6h đầu của mỗi post. Đầu ra là một CSDL SQLite sẵn sàng để
+thời gian** trong 24h đầu của mỗi post. Đầu ra là một CSDL SQLite sẵn sàng để
 huấn luyện mô hình **online-learning đa phương thức (text + ảnh → dự đoán
 engagement tương lai)**.
 
@@ -18,8 +18,8 @@ Dữ liệu lấy qua REST API của [twitterapi.io](https://twitterapi.io) (hea
 | **Intake post tuổi 0–30 phút** | Càng bắt sớm, engagement càng còn nhiều room tăng (lúc ≤0.5h mới ~8–28% giá trị cuối) → label nhiều biến động; cũng buộc model học từ NỘI DUNG (text+ảnh) chứ không dựa vào engagement sớm. |
 | **Không lọc `min_faves` lúc intake** | Ở tuổi 0–30p chưa biết post nào sẽ viral — **độ viral chính là label cần dự đoán**. |
 | **Toán tử `since_time:<epoch>`** | Chỉ lấy post trong 1h qua → không trả tiền cho post cũ. |
-| **Snapshot theo lịch `[0.5,1,1.5,2,3,4,6]h`** | Lấy mẫu dày 30 phút/lần ở 0–2h (đo được: +73% giờ đầu → ~+8% lúc ~5h). Cần chạy `--interval 1800`. |
-| **Retire sau 6h** | Post đã bão hòa quanh ~5–6h → ngừng re-fetch để tiết kiệm chi phí + chín nhanh. |
+| **Snapshot theo lịch `[0.5,1,1.5,2,3,4,6,10,16,24]h`** | Dày 30 phút/lần ở 0–2h (post thường bão hòa ~5–6h) + đuôi 10/16/24h để bắt độ lớn của post viral (vẫn leo sau 6h). Cần chạy `--interval 1800`. |
+| **Retire sau 24h** | Đa số post phẳng sớm nhưng đuôi viral leo tới ~24h → theo dõi hết 24h. |
 
 ---
 
@@ -57,7 +57,7 @@ Dữ liệu lấy qua REST API của [twitterapi.io](https://twitterapi.io) (hea
       chọn post chưa retire mà tuổi ≥ mốc lịch kế tiếp
           GET /twitter/tweets?tweet_ids=...   (batch 50 id/call)
           INSERT snapshots(...)   (ghi views/likes/shares tại tuổi hiện tại)
-          tiến con trỏ lịch; nếu qua mốc cuối hoặc tuổi ≥6h → RETIRE post
+          tiến con trỏ lịch; nếu qua mốc cuối hoặc tuổi ≥24h → RETIRE post
 ```
 
 Mỗi post vì thế có **một chuỗi snapshot theo thời gian** = nhãn (label) cho bài

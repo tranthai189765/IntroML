@@ -56,11 +56,12 @@ TRENDS_PER_WOEID = 10
 PAGES_PER_TOPIC = 1          # top page only (~20 highest-early-traction posts/topic)
 FRESH_WINDOW_H = 0.5         # intake posts aged 0..30min (maximum growth still ahead)
 
-# Engagement saturates by ~5-6h (measured: +73% in step 1 -> ~+8% by ~5h).
-# Dense 30-min sampling in 0-2h (steepest growth), retire at 6h.
+# Typical posts saturate by ~5-6h, but VIRAL posts keep climbing well past 6h
+# (measured: +64% views from 4h->6h on a viral sample). Dense 30-min sampling in
+# 0-2h (steepest growth) + coarse tail 10/16/24h to capture the viral magnitude.
 # NOTE: smallest gap is 0.5h -> MUST run with --interval 1800 (30min) to resolve it.
-SNAPSHOT_AGES_H = [0.5, 1, 1.5, 2, 3, 4, 6]
-MAX_TRACK_H = 6             # retire after this age
+SNAPSHOT_AGES_H = [0.5, 1, 1.5, 2, 3, 4, 6, 10, 16, 24]
+MAX_TRACK_H = 24            # retire after this age
 SNAPSHOT_BATCH = 50         # tweet_ids per /twitter/tweets call (100 => HTTP 400)
 
 # spam heuristics
