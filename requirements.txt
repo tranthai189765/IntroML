@@ -10,8 +10,14 @@ numpy>=1.24
 # --- optional: image validation/resize before training ---
 # Pillow>=10
 
-# --- optional: multimodal (text+image) online-learning training side ---
+# --- embed_dataset.py (text+image embeddings) ---
 # torch>=2.2
-# transformers>=4.40        # text + CLIP/ViT image encoders
-# scikit-learn>=1.4         # online/incremental models (SGDRegressor, PassiveAggressive)
+# transformers>=4.45        # SigLIP2 image encoder
+# FlagEmbedding>=1.2        # BGE-M3 dense text embedding
+# pillow>=10
 # pandas>=2.2
+# pyarrow>=15               # parquet output
+
+# --- optional: multimodal online-learning training side ---
+# scikit-learn>=1.4         # SGDClassifier/Regressor (online) ; or lightgbm>=4 for best small-data accuracy
+# lightgbm>=4.0
