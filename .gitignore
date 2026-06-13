@@ -4,6 +4,7 @@
 
 # --- collected data (large / private) ---
 data/
+data_v1/
 *.db
 *.sqlite
 *.sqlite3
