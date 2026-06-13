@@ -82,26 +82,31 @@ def main():
     total = con.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
     print(f"[filter] total={total} | KEPT={len(kept)} | dropped={total-len(kept)}")
 
-    # ---- final-age Score -> percentile labels ----
-    gl = GRID[-1]                                              # 6h (last grid age)
-    final_score = {}
+    # ---- per-snapshot Score + per-age percentile Label ----
+    # Label is computed PER snapshot age (thresholds from that age's own score
+    # distribution) -> a post's class can rise over time as it goes viral.
+    sc = {g: {} for g in GRID}
     for pid in kept:
-        L, V, RT, RE = aligned[pid][gl]
-        final_score[pid] = score(L, V, RE, RT)                # C=replies, R=retweets
-    sv = np.array([final_score[p] for p in kept])
-    p50, p80, p95 = np.percentile(sv, [50, 80, 95])
+        for g in GRID:
+            L, V, RT, RE = aligned[pid][g]
+            sc[g][pid] = score(L, V, RE, RT)                  # C=RE(replies), R=RT(retweets)
 
-    def label(s):
-        if s >= p95: return 3                                 # Viral  (top 5%)
-        if s >= p80: return 2                                 # Popular(5-20%)
-        if s >= p50: return 1                                 # Medium (20-50%)
-        return 0                                              # Low/Flop (bottom 50%)
+    thr, lab = {}, {g: {} for g in GRID}
+    for g in GRID:
+        a = np.array([sc[g][p] for p in kept])
+        p50, p80, p95 = np.percentile(a, [50, 80, 95])
+        thr[g] = (p50, p80, p95)
+        for pid in kept:
+            s = sc[g][pid]
+            lab[g][pid] = 3 if s >= p95 else 2 if s >= p80 else 1 if s >= p50 else 0
 
-    labels = {p: label(final_score[p]) for p in kept}
-    dist = collections.Counter(labels.values())
-    print(f"[label] thresholds(Score@6h): P50={p50:.2f} P80={p80:.2f} P95={p95:.2f}")
-    for lb, nm in [(3, "Viral"), (2, "Popular"), (1, "Medium"), (0, "Low/Flop")]:
-        print(f"  Label {lb} {nm:<9}: {dist[lb]:>5} ({100*dist[lb]/len(kept):.1f}%)")
+    gl = GRID[-1]                                             # 6h -> the canonical label
+    final_score, labels = sc[gl], lab[gl]
+    print("[label] phan bo Viral/Popular/Medium/Low theo TUNG snapshot:")
+    for g in GRID:
+        d = collections.Counter(lab[g].values())
+        print(f"  {g:>3}h (P95={thr[g][2]:.2f}): "
+              f"3={d[3]:>4} 2={d[2]:>4} 1={d[1]:>4} 0={d[0]:>4}")
 
     # ---- clean DB (same schema, only kept posts + their snapshots) ----
     out = pathlib.Path(OUT_DB)
@@ -128,7 +133,7 @@ def main():
     for g in GRID:
         gk = str(g).replace(".", "_")
         grid_cols += [f"likes_{gk}h", f"views_{gk}h", f"comments_{gk}h",
-                      f"reposts_{gk}h", f"score_{gk}h"]
+                      f"reposts_{gk}h", f"score_{gk}h", f"label_{gk}h"]
     header = ["id", "author", "lang", "has_image", "has_video", "img_path",
               "intake_age_h", "url", "text"] + grid_cols + ["score_final", "label"]
     n_img = 0
@@ -144,7 +149,7 @@ def main():
                    (m["text"] or "").replace("\n", " ").strip()]
             for g in GRID:
                 L, V, RT, RE = aligned[pid][g]
-                row += [L, V, RE, RT, round(score(L, V, RE, RT), 4)]   # C=RE, R=RT
+                row += [L, V, RE, RT, round(sc[g][pid], 4), lab[g][pid]]   # C=RE, R=RT
             row += [round(final_score[pid], 4), labels[pid]]
             w.writerow(row)
     print(f"[saved] {OUT_CSV}  ({n_img}/{len(kept)} co anh)")
