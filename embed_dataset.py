@@ -9,6 +9,7 @@ aligned to the CSV by post `id`:
   data/embeddings/
     ids.npy                  (N,)        post ids in CSV row order (alignment key)
     text_emb.npy             (N, 1024)   BGE-M3 dense, L2-normalized
+    author_emb.npy           (N, 1024)   BGE-M3 of author username (weak; see note)
     image_emb_per_image.npz  files[],emb (M, D)  one row per image file
     image_emb_per_post.npy   (N, D)      mean-pooled over a post's images (0 if none)
     has_image.npy            (N,) bool
@@ -54,6 +55,13 @@ def main():
     text_emb = l2(text_emb)
     np.save(OUT / "text_emb.npy", text_emb)
     print(f"[text] text_emb {text_emb.shape} saved")
+
+    # author name embedding (same encoder; short strings). Weak signal on its own
+    # (usernames aren't natural language) -> follower count would be far stronger.
+    authors = df["author"].fillna("").astype(str).tolist()
+    author_emb = l2(tm.encode(authors, batch_size=64, max_length=32)["dense_vecs"])
+    np.save(OUT / "author_emb.npy", author_emb)
+    print(f"[text] author_emb {author_emb.shape} saved")
 
     # ---------------- IMAGE: SigLIP2 (per image file) ----------------
     from transformers import AutoModel, AutoProcessor
@@ -102,6 +110,7 @@ def main():
     try:
         out = df.copy()
         out["text_emb"] = list(text_emb.astype(np.float32))
+        out["author_emb"] = list(author_emb.astype(np.float32))
         out["image_emb"] = list(per_post.astype(np.float32))
         out["has_image_emb"] = has_img
         out.to_parquet(OUT / "dataset_embeddings.parquet", index=False)
