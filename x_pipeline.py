@@ -20,6 +20,7 @@ CLI:
   python x_pipeline.py init
   python x_pipeline.py intake   [--target 5000 | --add 10000] [--budget 2.0]
   python x_pipeline.py snapshot [--force] [--budget 2.0]
+  python x_pipeline.py reactivate   # un-retire old posts still within the 72h window
   python x_pipeline.py run      [--target 5000 | --add 10000] [--interval 1800] [--budget 8.0]
   python x_pipeline.py stats
 """
@@ -61,7 +62,7 @@ FRESH_WINDOW_H = 0.5         # intake posts aged 0..30min (maximum growth still 
 # (measured: +64% views from 4h->6h on a viral sample). Dense 30-min sampling in
 # 0-2h (steepest growth) + coarse tail 10/16/24h to capture the viral magnitude.
 # NOTE: smallest gap is 0.5h -> MUST run with --interval 1800 (30min) to resolve it.
-SNAPSHOT_AGES_H = [0.5, 1, 1.5, 2, 3, 4, 6, 10, 16, 24, 44, 48, 60, 72]
+SNAPSHOT_AGES_H = [0.5, 1, 1.5, 2, 3, 4, 6, 10, 16, 24, 48, 60, 72]
 MAX_TRACK_H = 72            # retire after this age (extended tail: viral magnitude to 3d)
 SNAPSHOT_BATCH = 50         # tweet_ids per /twitter/tweets call (100 => HTTP 400)
 
@@ -537,9 +538,50 @@ def snapshot(budget, force=False):
     conn.close()
 
 
+# ----------------------------- reactivate -----------------------------------
+REACTIVATE_TOL_H = 0.6        # khớp tolerance phía sau của filter_consistent grid
+
+def reactivate():
+    """Un-retire (hồi sinh) các post đã retire dưới lịch CŨ nhưng vẫn còn trong
+    cửa sổ track MỚI -> snapshot() sẽ tự lấy các mốc vừa thêm (48/60/72h).
+
+    Chỉ hồi sinh post mà mốc kế tiếp CHƯA chụp VẪN còn bắt được (cur_age chưa vượt
+    quá cửa sổ của mốc đó) -> đảm bảo lấy được quỹ đạo tail SẠCH, không tạo snapshot
+    lệch grid. Post đã quá hạn (cur_age >= MAX_TRACK_H) hoặc đã hết mốc -> bỏ qua.
+    DB-only, KHÔNG tốn API.
+    """
+    conn = db()
+    now = int(time.time())
+    retired = conn.execute("SELECT id, created_epoch FROM posts WHERE retired=1").fetchall()
+    revived = 0
+    for p in retired:
+        cur_age = (now - p["created_epoch"]) / 3600
+        if cur_age >= MAX_TRACK_H:
+            continue
+        last = conn.execute("SELECT MAX(age_h) a FROM snapshots WHERE post_id=?",
+                            (p["id"],)).fetchone()["a"]
+        last = last if last is not None else 0.0
+        idx = 0
+        while idx < len(SNAPSHOT_AGES_H) and SNAPSHOT_AGES_H[idx] <= last:
+            idx += 1
+        if idx >= len(SNAPSHOT_AGES_H):
+            continue                                   # đã chụp hết mốc
+        if cur_age > SNAPSHOT_AGES_H[idx] + REACTIVATE_TOL_H:
+            continue                                   # đã lỡ cửa sổ mốc kế -> bỏ (tránh lệch grid)
+        conn.execute("UPDATE posts SET retired=0, next_snap_idx=? WHERE id=?", (idx, p["id"]))
+        revived += 1
+    conn.commit()
+    active = conn.execute("SELECT COUNT(*) FROM posts WHERE retired=0").fetchone()[0]
+    conn.close()
+    print(f"[reactivate] revived {revived} retired posts -> active={active} "
+          f"(snapshot() sẽ tự lấy mốc 48/60/72h khi tới tuổi)")
+    return revived
+
+
 # ----------------------------- run loop -------------------------------------
 def run(target, interval, budget):
     print(f"[run] target={target} interval={interval}s budget=${budget.cap/CREDITS_PER_USD:.2f}")
+    reactivate()                     # 1 lần: hồi sinh post cũ còn trong cửa sổ 72h, rồi mới snapshot/intake
     while budget.ok():
         snapshot(budget)                 # update due posts first
         intake(target, budget)           # then top up with fresh posts
@@ -611,6 +653,7 @@ def main():
     pi = sub.add_parser("intake"); pi.add_argument("--target", type=int, default=5000); pi.add_argument("--budget", type=float, default=2.0); pi.add_argument("--add", type=int, default=None, help="crawl N MORE posts beyond current DB count")
     ps = sub.add_parser("snapshot"); ps.add_argument("--force", action="store_true"); ps.add_argument("--budget", type=float, default=2.0)
     pr = sub.add_parser("run"); pr.add_argument("--target", type=int, default=5000); pr.add_argument("--interval", type=int, default=3600); pr.add_argument("--budget", type=float, default=8.0); pr.add_argument("--add", type=int, default=None, help="crawl N MORE posts beyond current DB count")
+    sub.add_parser("reactivate")
     sub.add_parser("stats")
     a = ap.parse_args()
 
@@ -623,6 +666,8 @@ def main():
         acquire_lock(); init_db(); snapshot(Budget(a.budget), force=a.force)
     elif a.cmd == "run":
         acquire_lock(); init_db(); run(_resolve_target(a), a.interval, Budget(a.budget))
+    elif a.cmd == "reactivate":
+        acquire_lock(); init_db(); reactivate()
     elif a.cmd == "stats":
         stats()
     b1 = balance()
