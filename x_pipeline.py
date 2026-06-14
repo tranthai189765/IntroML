@@ -12,15 +12,15 @@ Design (see memory: x-online-learning-intake-window):
             know virality at age 0-1h; that's the label to predict).
   - SPAM:   drop near-duplicate text clusters (campaigns) + per-author flooders.
   - STORE:  SQLite (posts + snapshots). Images downloaded to data/media/.
-  - SNAP:   re-fetch via batch /twitter/tweets at post-ages [1,2,4,8,12,24]h,
-            then RETIRE (>24h is converged -> no point paying to re-fetch).
+  - SNAP:   re-fetch via batch /twitter/tweets at post-ages 0.5..72h
+            (SNAPSHOT_AGES_H), then RETIRE past MAX_TRACK_H (72h).
   - BUDGET: hard cost cap (USD). Stops calling the API before exceeding it.
 
 CLI:
   python x_pipeline.py init
-  python x_pipeline.py intake   [--target 5000] [--budget 2.0]
+  python x_pipeline.py intake   [--target 5000 | --add 10000] [--budget 2.0]
   python x_pipeline.py snapshot [--force] [--budget 2.0]
-  python x_pipeline.py run      [--target 5000] [--interval 3600] [--budget 8.0]
+  python x_pipeline.py run      [--target 5000 | --add 10000] [--interval 1800] [--budget 8.0]
   python x_pipeline.py stats
 """
 import os
@@ -54,14 +54,15 @@ WOEIDS = [1, 23424977, 23424975, 23424856, 23424819, 23424747, 23424768]
 #         World, US, UK, Japan, France, Argentina, Brazil
 TRENDS_PER_WOEID = 10
 PAGES_PER_TOPIC = 1          # top page only (~20 highest-early-traction posts/topic)
+PAGE_FRACTION = 0.5          # keep only the first 50% of that top page (highest-traction half)
 FRESH_WINDOW_H = 0.5         # intake posts aged 0..30min (maximum growth still ahead)
 
 # Typical posts saturate by ~5-6h, but VIRAL posts keep climbing well past 6h
 # (measured: +64% views from 4h->6h on a viral sample). Dense 30-min sampling in
 # 0-2h (steepest growth) + coarse tail 10/16/24h to capture the viral magnitude.
 # NOTE: smallest gap is 0.5h -> MUST run with --interval 1800 (30min) to resolve it.
-SNAPSHOT_AGES_H = [0.5, 1, 1.5, 2, 3, 4, 6, 10, 16, 24]
-MAX_TRACK_H = 24            # retire after this age
+SNAPSHOT_AGES_H = [0.5, 1, 1.5, 2, 3, 4, 6, 10, 16, 24, 44, 48, 60, 72]
+MAX_TRACK_H = 72            # retire after this age (extended tail: viral magnitude to 3d)
 SNAPSHOT_BATCH = 50         # tweet_ids per /twitter/tweets call (100 => HTTP 400)
 
 # spam heuristics
@@ -407,7 +408,9 @@ def intake(target, budget):
                 except Exception:
                     break
                 batch = sj.get("tweets", [])
-                budget.charge_request(len(batch))
+                budget.charge_request(len(batch))     # charged for the full page returned
+                if PAGE_FRACTION < 1.0:               # 0.5 page: chỉ giữ nửa đầu (traction cao nhất)
+                    batch = batch[:max(1, int(len(batch) * PAGE_FRACTION))]
                 for t in batch:
                     tid = t.get("id")
                     if not tid or tid in seen or tid in existing:
@@ -591,13 +594,23 @@ def stats():
 
 
 # ----------------------------- cli ------------------------------------------
+def _resolve_target(a):
+    """--add N  ->  target = (số post đang có) + N. Crawl thêm N post, GIỮ data cũ."""
+    if getattr(a, "add", None) is not None:
+        conn = db(); cur = n_posts(conn); conn.close()
+        tgt = cur + a.add
+        print(f"[target] keep existing {cur} + add {a.add} -> target {tgt}")
+        return tgt
+    return a.target
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init")
-    pi = sub.add_parser("intake"); pi.add_argument("--target", type=int, default=5000); pi.add_argument("--budget", type=float, default=2.0)
+    pi = sub.add_parser("intake"); pi.add_argument("--target", type=int, default=5000); pi.add_argument("--budget", type=float, default=2.0); pi.add_argument("--add", type=int, default=None, help="crawl N MORE posts beyond current DB count")
     ps = sub.add_parser("snapshot"); ps.add_argument("--force", action="store_true"); ps.add_argument("--budget", type=float, default=2.0)
-    pr = sub.add_parser("run"); pr.add_argument("--target", type=int, default=5000); pr.add_argument("--interval", type=int, default=3600); pr.add_argument("--budget", type=float, default=8.0)
+    pr = sub.add_parser("run"); pr.add_argument("--target", type=int, default=5000); pr.add_argument("--interval", type=int, default=3600); pr.add_argument("--budget", type=float, default=8.0); pr.add_argument("--add", type=int, default=None, help="crawl N MORE posts beyond current DB count")
     sub.add_parser("stats")
     a = ap.parse_args()
 
@@ -605,11 +618,11 @@ def main():
     if a.cmd == "init":
         init_db()
     elif a.cmd == "intake":
-        acquire_lock(); init_db(); intake(a.target, Budget(a.budget))
+        acquire_lock(); init_db(); intake(_resolve_target(a), Budget(a.budget))
     elif a.cmd == "snapshot":
         acquire_lock(); init_db(); snapshot(Budget(a.budget), force=a.force)
     elif a.cmd == "run":
-        acquire_lock(); init_db(); run(a.target, a.interval, Budget(a.budget))
+        acquire_lock(); init_db(); run(_resolve_target(a), a.interval, Budget(a.budget))
     elif a.cmd == "stats":
         stats()
     b1 = balance()
