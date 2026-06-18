@@ -66,6 +66,13 @@ SNAPSHOT_AGES_H = [0.5, 1, 1.5, 2, 3, 4, 6, 10, 16, 24, 48, 60, 72]
 MAX_TRACK_H = 72            # retire after this age (extended tail: viral magnitude to 3d)
 SNAPSHOT_BATCH = 50         # tweet_ids per /twitter/tweets call (100 => HTTP 400)
 
+# Intake throttle: cap how many posts sit in the DENSE early phase (<DENSE_PHASE_H)
+# at once. Too many young posts => each snapshot() cycle is huge => cadence too slow
+# => young posts skip the 0.5h-spaced early milestones (0.5..6h) and break. Pause
+# intake while that backlog is above the cap so the active set stays snapshot-able.
+DENSE_PHASE_H = 6           # 0.5..6h milestones are 0.5h apart -> need tight cadence
+MAX_YOUNG_ACTIVE = 600      # pause intake while > this many active posts are < DENSE_PHASE_H
+
 # spam heuristics
 DUP_TEXT_THRESHOLD = 3        # >=N identical normalized texts => campaign spam
 TEMPLATE_THRESHOLD = 4        # >=N posts sharing a skeleton (text minus tags/nums)
@@ -579,12 +586,24 @@ def reactivate():
 
 
 # ----------------------------- run loop -------------------------------------
+def n_young_active(conn):
+    """Active posts still in the dense early phase (age < DENSE_PHASE_H)."""
+    cutoff = int(time.time()) - int(DENSE_PHASE_H * 3600)
+    return conn.execute("SELECT COUNT(*) FROM posts WHERE retired=0 AND created_epoch >= ?",
+                        (cutoff,)).fetchone()[0]
+
+
 def run(target, interval, budget):
     print(f"[run] target={target} interval={interval}s budget=${budget.cap/CREDITS_PER_USD:.2f}")
     reactivate()                     # 1 lần: hồi sinh post cũ còn trong cửa sổ 72h, rồi mới snapshot/intake
     while budget.ok():
-        snapshot(budget)                 # update due posts first
-        intake(target, budget)           # then top up with fresh posts
+        snapshot(budget)                 # update due posts first (keeps cadence tight)
+        conn = db(); ny = n_young_active(conn); conn.close()
+        if ny < MAX_YOUNG_ACTIVE:
+            intake(target, budget)       # top up ONLY when the young backlog is low
+        else:
+            print(f"[run] throttle: {ny} young(<{DENSE_PHASE_H}h) active >= {MAX_YOUNG_ACTIVE}, "
+                  f"skip intake this cycle (let them mature first)")
         conn = db(); total = n_posts(conn); conn.close()
         if total >= target:
             print(f"[run] reached target {total}/{target}. Continuing snapshots only "
