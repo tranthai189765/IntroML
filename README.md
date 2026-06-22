@@ -25,8 +25,9 @@ Ba thuật toán học trực tuyến được so sánh trên **cùng một bộ
 5. [Bước 1 — Trích xuất đặc trưng (embedding)](#5-bước-1--trích-xuất-đặc-trưng-embedding)
 6. [Bước 2 — Chạy thuật toán theo từng loại dữ liệu](#6-bước-2--chạy-thuật-toán-theo-từng-loại-dữ-liệu)
 7. [Bước 3 — Đánh giá](#7-bước-3--đánh-giá)
-8. [Pipeline thu thập & xây dựng dữ liệu (tùy chọn)](#8-pipeline-thu-thập--xây-dựng-dữ-liệu-tùy-chọn)
-9. [Tóm tắt kết quả](#9-tóm-tắt-kết-quả)
+8. [Phân tích nhân quả (Causal Inference)](#8-phân-tích-nhân-quả-causal-inference)
+9. [Pipeline thu thập & xây dựng dữ liệu (tùy chọn)](#9-pipeline-thu-thập--xây-dựng-dữ-liệu-tùy-chọn)
+10. [Tóm tắt kết quả](#10-tóm-tắt-kết-quả)
 
 ---
 
@@ -72,6 +73,12 @@ IntroML/
 │   ├── online_vs_offline.py      # so sánh online vs 2 baseline offline
 │   ├── report_figures.py         # sinh hình cho báo cáo
 │   └── simulate_results.py
+│
+├── causal_inference/             # DML · PSM · CATE · E-value
+│   ├── merge_causal.py           # gộp đặc trưng -> causal_dataset.csv
+│   ├── dml_analysis.py           # Double Machine Learning (ATE)
+│   ├── psm_analysis.py · psm_ate_analysis.py   # Propensity Score Matching (ATT/ATE)
+│   └── cate_evalue.py            # CATE (hiệu ứng dị thể) + E-value
 │
 └── data_pipeline/                # script bổ sung (thu thập + xây dựng dữ liệu)
     ├── crawl_mature.py           # crawl post viral đã chín (>3 ngày)
@@ -189,7 +196,32 @@ python evaluation/report_figures.py
 
 ---
 
-## 8. Pipeline thu thập & xây dựng dữ liệu (tùy chọn)
+## 8. Phân tích nhân quả (Causal Inference)
+
+Ngoài dự đoán, đề tài phân tích **đặc trưng nội dung nào *thực sự* thúc đẩy độ viral theo nghĩa nhân quả** (chứ không chỉ tương quan). Biến kết quả là **điểm viral** (`score_final`); các biến can thiệp gồm `has_image`, `num_images`, `storytelling_score`, `emotional_intensity_text`, `curiosity_gap_score`, `contains_call_to_action`, `contains_celebrity`, `has_meme`, `educational_value`… Mọi phương pháp đều kiểm soát confounding bằng **quy mô tài khoản, chủ đề, ngôn ngữ và tuổi tài khoản**.
+
+Bốn phương pháp bổ trợ cho nhau:
+
+| Script | Phương pháp | Output |
+|---|---|---|
+| `merge_causal.py` | Gộp đặc trưng → `causal_dataset.csv` | dataset cho phân tích |
+| `dml_analysis.py` | **Double Machine Learning** — ATE (trực giao hoá + cross‑fitting) | `dml_results.csv`, `dml_forest.png` |
+| `psm_analysis.py` · `psm_ate_analysis.py` | **Propensity Score Matching** (ATT / ATE) — kiểm chứng chéo DML | `psm_results.csv`, `psm_vs_dml.png` |
+| `cate_evalue.py` | **CATE** (hiệu ứng dị thể theo quy mô tài khoản) + **E‑value** (độ vững trước confounder ẩn) | `evalue_results.csv`, `cate_by_account.png` |
+
+```bash
+python causal_inference/merge_causal.py        # -> causal_dataset.csv
+python causal_inference/dml_analysis.py         # DML: ATE chuẩn hoá (per-1SD) + tương quan thô
+python causal_inference/psm_analysis.py         # PSM-ATT vs DML
+python causal_inference/psm_ate_analysis.py     # PSM-ATE (cùng estimand với DML)
+python causal_inference/cate_evalue.py          # CATE theo quy mô tài khoản + E-value
+```
+
+> Kết luận chính: **có ảnh** và **kể chuyện / cảm xúc trong văn bản** là các đòn bẩy nhân quả mạnh & vững nhất; nhiều tương quan thô (giáo dục, meme) **biến mất** sau khi khử nhiễu — minh hoạ "tương quan ≠ nhân quả".
+
+---
+
+## 9. Pipeline thu thập & xây dựng dữ liệu (tùy chọn)
 
 Toàn bộ quá trình tạo dữ liệu (không bắt buộc chạy lại — dữ liệu đã có trên Drive):
 
@@ -204,7 +236,7 @@ python data_pipeline/add_author_meta.py data/50k_dataset_72h.csv   # bổ sung m
 
 ---
 
-## 9. Tóm tắt kết quả
+## 10. Tóm tắt kết quả
 
 *(Số liệu minh hoạ trong báo cáo; xem chi tiết ở chương Kết quả.)*
 
