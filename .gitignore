@@ -1,27 +1,36 @@
-# --- secrets ---
+# ───────────── DỮ LIỆU & ARTIFACTS — KHÔNG commit (tải từ Google Drive) ─────────────
+data/
+embeddings*/
+media/
+*.csv
+*.npy
+*.npz
+*.parquet
+*.pkl
+*.db
+*.tar
+*.zip
+*.jsonl
+authors.json
+*.log
+*.out
+*.err
+
+# ───────────── HÌNH ẢNH / KẾT QUẢ SINH RA ─────────────
+*.png
+*.pdf
+*.jpg
+*.jpeg
+
+# ───────────── BÍ MẬT — TUYỆT ĐỐI KHÔNG commit ─────────────
 .env
 *.key
+open_router.txt
 
-# --- collected data (large / private) ---
-data/
-data_v1/
-*.db
-*.sqlite
-*.sqlite3
-
-# --- third-party skill (has its own git repo) ---
-twitterapi-io/
-
-# --- python ---
+# ───────────── PYTHON ─────────────
 __pycache__/
-*.py[cod]
-*.egg-info/
+*.pyc
 .venv/
 venv/
-env/
-
-# --- os / editor ---
+.ipynb_checkpoints/
 .DS_Store
-Thumbs.db
-.vscode/
-.idea/
